@@ -2,21 +2,25 @@ import { useState } from 'react';
 import {
   SURFACE_TYPE_MULTIPLIERS,
   TEXTURE_MULTIPLIERS,
-  SHEEN_MULTIPLIERS,
+  EXISTING_SHEEN_MULTIPLIERS,
+  PAINT_SHEEN_MULTIPLIERS,
   COLOR_CHANGE_MULTIPLIERS,
 } from '../utils/calculator';
 
-function GallonDisplay({ label, gallons, quarts }) {
+function GallonDisplay({ label, gallons, quarts, sub }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      {sub && <p className="mb-1 text-xs text-slate-400">{sub}</p>}
       <p className="text-3xl font-bold text-slate-800">
         {gallons > 0 && (
           <span>
             {gallons} <span className="text-lg font-medium text-slate-500">gal</span>
           </span>
         )}
-        {gallons > 0 && quarts > 0 && <span className="text-slate-400 text-xl mx-2">+</span>}
+        {gallons > 0 && quarts > 0 && (
+          <span className="text-slate-400 text-xl mx-2">+</span>
+        )}
         {quarts > 0 && (
           <span>
             {quarts} <span className="text-lg font-medium text-slate-500">qt</span>
@@ -34,39 +38,58 @@ function StepRow({ step, value, highlight }) {
   return (
     <tr className={highlight ? 'bg-blue-50' : undefined}>
       <td className="py-2 pr-4 text-sm text-slate-600">{step}</td>
-      <td className="py-2 text-right text-sm font-medium text-slate-800">{value}</td>
+      <td className="py-2 text-right text-sm font-medium text-slate-800 whitespace-nowrap">{value}</td>
     </tr>
   );
+}
+
+function SectionLabel({ children }) {
+  return (
+    <p className="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+      {children}
+    </p>
+  );
+}
+
+function galStr(g) {
+  return g.quarts > 0 ? `${g.gallons} gal + ${g.quarts} qt` : `${g.gallons} gal`;
 }
 
 export default function ResultsPanel({ result, inputs, onReset }) {
   const [expanded, setExpanded] = useState(false);
 
-  const { steps, paint, primer } = result;
+  const { steps, paint, primer, ceiling, ceilingSteps } = result;
 
   const surfaceLabel = SURFACE_TYPE_MULTIPLIERS[inputs.surfaceType]?.label ?? inputs.surfaceType;
   const textureLabel = TEXTURE_MULTIPLIERS[inputs.texture]?.label ?? inputs.texture;
-  const sheenLabel = SHEEN_MULTIPLIERS[inputs.sheen]?.label ?? inputs.sheen;
+  const existingSheenLabel = EXISTING_SHEEN_MULTIPLIERS[inputs.existingSheen]?.label ?? inputs.existingSheen;
+  const paintSheenLabel = PAINT_SHEEN_MULTIPLIERS[inputs.paintSheen]?.label ?? inputs.paintSheen;
   const colorLabel = COLOR_CHANGE_MULTIPLIERS[inputs.colorChange]?.label ?? inputs.colorChange;
+  const ceilingTextureLabel = TEXTURE_MULTIPLIERS[inputs.ceilingTexture]?.label ?? inputs.ceilingTexture;
+
+  // How many result cards to show
+  const cards = [
+    { key: 'paint', label: 'Wall Paint', data: paint },
+    ceiling ? { key: 'ceiling', label: 'Ceiling Paint', sub: 'Always flat', data: ceiling } : null,
+    primer ? { key: 'primer', label: 'Primer', data: primer } : null,
+  ].filter(Boolean);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="mb-5 text-lg font-semibold text-slate-800">Your Estimate</h2>
 
-      {/* Main results */}
-      <div className="grid gap-4 sm:grid-cols-2 mb-5">
-        <GallonDisplay
-          label="Paint Needed"
-          gallons={paint.gallons}
-          quarts={paint.quarts}
-        />
-        {primer ? (
+      {/* Main result cards */}
+      <div className={`grid gap-4 mb-5 ${cards.length === 1 ? '' : cards.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+        {cards.map((c) => (
           <GallonDisplay
-            label="Primer Needed"
-            gallons={primer.gallons}
-            quarts={primer.quarts}
+            key={c.key}
+            label={c.label}
+            sub={c.sub}
+            gallons={c.data.gallons}
+            quarts={c.data.quarts}
           />
-        ) : (
+        ))}
+        {!primer && (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 flex items-center justify-center">
             <p className="text-sm text-slate-400">No primer required</p>
           </div>
@@ -105,48 +128,68 @@ export default function ResultsPanel({ result, inputs, onReset }) {
         </button>
 
         {expanded && (
-          <div className="border-t border-slate-200 px-4 pb-3">
-            <table className="w-full mt-3">
+          <div className="border-t border-slate-200 px-4 pb-4">
+
+            {/* Wall paint breakdown */}
+            <SectionLabel>Wall Paint</SectionLabel>
+            <table className="w-full">
               <tbody>
-                <StepRow step="Raw square footage" value={`${steps.rawSqFt.toLocaleString()} sq ft`} />
-                <StepRow step={`Surface multiplier (${surfaceLabel})`} value={`× ${steps.surfaceMultiplier.toFixed(2)}`} />
-                <StepRow step={`Texture multiplier (${textureLabel})`} value={`× ${steps.textureMultiplier.toFixed(2)}`} />
-                <StepRow step={`Sheen multiplier (${sheenLabel})`} value={`× ${steps.sheenMultiplier.toFixed(2)}`} />
-                <StepRow step={`Color change multiplier (${colorLabel})`} value={`× ${steps.colorMultiplier.toFixed(2)}`} />
-                <StepRow step="Adjusted square footage" value={`${steps.adjustedSqFt.toFixed(1)} sq ft`} highlight />
+                <StepRow step="Raw wall sq footage" value={`${steps.rawSqFt.toLocaleString()} sq ft`} />
+                <StepRow step={`Surface type (${surfaceLabel})`} value={`× ${steps.surfaceMultiplier.toFixed(2)}`} />
+                <StepRow step={`Wall texture (${textureLabel})`} value={`× ${steps.textureMultiplier.toFixed(2)}`} />
+                <StepRow step={`Existing wall sheen (${existingSheenLabel})`} value={`× ${steps.existingSheenMultiplier.toFixed(2)}`} />
+                <StepRow step={`New paint sheen (${paintSheenLabel})`} value={`× ${steps.paintSheenMultiplier.toFixed(2)}`} />
+                <StepRow step={`Color change (${colorLabel})`} value={`× ${steps.colorMultiplier.toFixed(2)}`} />
+                <StepRow step="Adjusted sq footage" value={`${steps.adjustedSqFt.toFixed(1)} sq ft`} highlight />
                 <StepRow step="Coverage rate" value="350 sq ft / gal" />
                 <StepRow step="Gallons per coat" value={`${steps.gallonsPerCoat.toFixed(2)} gal`} />
-                <StepRow step={`Number of coats (× ${inputs.coats})`} value={`${steps.totalGallons.toFixed(2)} gal`} />
+                <StepRow step={`× ${inputs.coats} coat${inputs.coats > 1 ? 's' : ''}`} value={`${steps.totalGallons.toFixed(2)} gal`} />
                 <StepRow step={`Overage buffer (+${steps.bufferPercent}%)`} value={`${steps.finalGallons.toFixed(2)} gal`} highlight />
-                <StepRow
-                  step="Rounded to purchasable units"
-                  value={
-                    paint.quarts > 0
-                      ? `${paint.gallons} gal + ${paint.quarts} qt`
-                      : `${paint.gallons} gal`
-                  }
-                  highlight
-                />
+                <StepRow step="Rounded to purchasable units" value={galStr(paint)} highlight />
               </tbody>
             </table>
 
-            {primer && (
+            {/* Ceiling breakdown */}
+            {ceiling && ceilingSteps && (
               <>
-                <p className="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Primer Calculation</p>
+                <SectionLabel>Ceiling Paint</SectionLabel>
                 <table className="w-full">
                   <tbody>
-                    <StepRow step="Coverage rate" value="300 sq ft / gal" />
-                    <StepRow step={`Surface multiplier (${surfaceLabel})`} value={`× ${steps.surfaceMultiplier.toFixed(2)}`} />
-                    <StepRow step={`Overage buffer (+${steps.bufferPercent}%)`} value="" />
+                    <StepRow step="Base sq footage (= wall input)" value={`${ceilingSteps.baseSqFt.toLocaleString()} sq ft`} />
+                    {ceilingSteps.addlSqFt > 0 && (
+                      <StepRow step="Additional ceiling sq ft" value={`+ ${ceilingSteps.addlSqFt.toLocaleString()} sq ft`} />
+                    )}
+                    <StepRow step="Total ceiling sq footage" value={`${ceilingSteps.totalSqFt.toLocaleString()} sq ft`} highlight />
                     <StepRow
-                      step="Primer total"
-                      value={
-                        primer.quarts > 0
-                          ? `${primer.gallons} gal + ${primer.quarts} qt`
-                          : `${primer.gallons} gal`
-                      }
-                      highlight
+                      step={`Surface type (${inputs.isNewSurface ? 'Drywall new' : 'Drywall repaint'})`}
+                      value={`× ${ceilingSteps.ceilingSurfaceMultiplier.toFixed(2)}`}
                     />
+                    <StepRow step={`Ceiling texture (${ceilingTextureLabel})`} value={`× ${ceilingSteps.ceilingTextureMultiplier.toFixed(2)}`} />
+                    <StepRow step="Paint sheen (always flat)" value="× 1.00" />
+                    <StepRow step={`Color change (${colorLabel})`} value={`× ${ceilingSteps.colorMultiplier.toFixed(2)}`} />
+                    <StepRow step="Adjusted sq footage" value={`${ceilingSteps.adjustedCeilingSqFt.toFixed(1)} sq ft`} highlight />
+                    <StepRow step="Coverage rate" value="350 sq ft / gal" />
+                    <StepRow step="Gallons per coat" value={`${ceilingSteps.ceilingGallonsPerCoat.toFixed(2)} gal`} />
+                    <StepRow step={`× ${inputs.coats} coat${inputs.coats > 1 ? 's' : ''}`} value={`${ceilingSteps.ceilingTotalGallons.toFixed(2)} gal`} />
+                    <StepRow step={`Overage buffer (+${steps.bufferPercent}%)`} value={`${ceilingSteps.ceilingFinalGallons.toFixed(2)} gal`} highlight />
+                    <StepRow step="Rounded to purchasable units" value={galStr(ceiling)} highlight />
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {/* Primer breakdown */}
+            {primer && (
+              <>
+                <SectionLabel>Primer</SectionLabel>
+                <table className="w-full">
+                  <tbody>
+                    <StepRow step="Raw wall sq footage" value={`${steps.rawSqFt.toLocaleString()} sq ft`} />
+                    <StepRow step={`Surface type (${surfaceLabel})`} value={`× ${steps.surfaceMultiplier.toFixed(2)}`} />
+                    <StepRow step={`Wall texture (${textureLabel})`} value={`× ${steps.textureMultiplier.toFixed(2)}`} />
+                    <StepRow step="Coverage rate" value="300 sq ft / gal" />
+                    <StepRow step={`Overage buffer (+${steps.bufferPercent}%)`} value="" />
+                    <StepRow step="Rounded to purchasable units" value={galStr(primer)} highlight />
                   </tbody>
                 </table>
               </>
