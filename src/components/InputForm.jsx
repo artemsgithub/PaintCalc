@@ -1,16 +1,18 @@
 import {
   SURFACE_TYPE_MULTIPLIERS,
   TEXTURE_MULTIPLIERS,
-  SHEEN_MULTIPLIERS,
+  EXISTING_SHEEN_MULTIPLIERS,
+  PAINT_SHEEN_MULTIPLIERS,
   COLOR_CHANGE_MULTIPLIERS,
 } from '../utils/calculator';
 
-function SelectField({ label, id, value, onChange, options }) {
+function SelectField({ label, id, value, onChange, options, hint }) {
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="text-sm font-medium text-slate-700">
         {label}
       </label>
+      {hint && <p className="text-xs text-slate-400 -mt-0.5">{hint}</p>}
       <select
         id={id}
         value={value}
@@ -27,19 +29,66 @@ function SelectField({ label, id, value, onChange, options }) {
   );
 }
 
-export default function InputForm({ inputs, onChange, onCalculate, error }) {
+function SectionDivider({ label }) {
+  return (
+    <div className="sm:col-span-2 flex items-center gap-3 pt-1">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+      <div className="flex-1 h-px bg-slate-200" />
+    </div>
+  );
+}
+
+function Toggle({ label, valueA, labelA, valueB, labelB, value, onChange }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm">
+        <button
+          type="button"
+          onClick={() => onChange(valueA)}
+          className={`flex-1 py-2 font-medium transition-colors ${
+            value === valueA
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          {labelA}
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(valueB)}
+          className={`flex-1 py-2 font-medium transition-colors ${
+            value === valueB
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          {labelB}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function InputForm({ inputs, onChange, onCalculate, errors }) {
   const set = (field) => (value) => onChange({ ...inputs, [field]: value });
+  const err = errors || {};
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="mb-5 text-lg font-semibold text-slate-800">Paint Calculator Inputs</h2>
 
       <div className="grid gap-5 sm:grid-cols-2">
+
+        {/* ── WALL SURFACE ── */}
+        <SectionDivider label="Wall Surface" />
+
         {/* Square Footage */}
         <div className="flex flex-col gap-1 sm:col-span-2">
           <label htmlFor="sqft" className="text-sm font-medium text-slate-700">
-            Square Footage
+            Wall Square Footage
           </label>
+          <p className="text-xs text-slate-400 -mt-0.5">Total paintable wall area (exclude doors & windows if desired)</p>
           <input
             id="sqft"
             type="number"
@@ -48,12 +97,12 @@ export default function InputForm({ inputs, onChange, onCalculate, error }) {
             value={inputs.squareFootage}
             onChange={(e) => set('squareFootage')(e.target.value)}
             className={`rounded-lg border px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 ${
-              error
+              err.squareFootage
                 ? 'border-red-400 focus:border-red-400 focus:ring-red-200'
                 : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200'
             }`}
           />
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {err.squareFootage && <p className="text-xs text-red-600">{err.squareFootage}</p>}
         </div>
 
         {/* Surface Type */}
@@ -74,14 +123,53 @@ export default function InputForm({ inputs, onChange, onCalculate, error }) {
           options={Object.entries(TEXTURE_MULTIPLIERS)}
         />
 
-        {/* Sheen */}
-        <SelectField
-          label="Sheen"
-          id="sheen"
-          value={inputs.sheen}
-          onChange={set('sheen')}
-          options={Object.entries(SHEEN_MULTIPLIERS)}
+        {/* Surface Condition */}
+        <Toggle
+          label="Surface Condition"
+          valueA={false}
+          labelA="Repaint"
+          valueB={true}
+          labelB="New Surface"
+          value={inputs.isNewSurface}
+          onChange={set('isNewSurface')}
         />
+
+        {/* Primer Needed */}
+        <Toggle
+          label="Primer Needed?"
+          valueA={false}
+          labelA="No"
+          valueB={true}
+          labelB="Yes"
+          value={inputs.primerNeeded}
+          onChange={set('primerNeeded')}
+        />
+
+        {/* ── SHEEN ── */}
+        <SectionDivider label="Sheen" />
+
+        {/* Existing Wall Sheen */}
+        <SelectField
+          label="Existing Wall Sheen"
+          id="existingSheen"
+          hint="Current sheen of the wall before painting"
+          value={inputs.existingSheen}
+          onChange={set('existingSheen')}
+          options={Object.entries(EXISTING_SHEEN_MULTIPLIERS)}
+        />
+
+        {/* New Paint Sheen */}
+        <SelectField
+          label="New Paint Sheen"
+          id="paintSheen"
+          hint="Sheen of the paint you're applying"
+          value={inputs.paintSheen}
+          onChange={set('paintSheen')}
+          options={Object.entries(PAINT_SHEEN_MULTIPLIERS)}
+        />
+
+        {/* ── PAINT JOB ── */}
+        <SectionDivider label="Paint Job" />
 
         {/* Number of Coats */}
         <div className="flex flex-col gap-1">
@@ -125,63 +213,61 @@ export default function InputForm({ inputs, onChange, onCalculate, error }) {
           />
         </div>
 
-        {/* New Surface / Repaint Toggle */}
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-slate-700">Surface Condition</span>
-          <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm">
-            <button
-              type="button"
-              onClick={() => set('isNewSurface')(false)}
-              className={`flex-1 py-2 font-medium transition-colors ${
-                !inputs.isNewSurface
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              Repaint
-            </button>
-            <button
-              type="button"
-              onClick={() => set('isNewSurface')(true)}
-              className={`flex-1 py-2 font-medium transition-colors ${
-                inputs.isNewSurface
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              New Surface
-            </button>
-          </div>
+        {/* ── CEILING ── */}
+        <SectionDivider label="Ceiling" />
+
+        {/* Include Ceiling Toggle */}
+        <div className="sm:col-span-2">
+          <Toggle
+            label="Include Ceiling Estimate?"
+            valueA={false}
+            labelA="No"
+            valueB={true}
+            labelB="Yes"
+            value={inputs.includeCeiling}
+            onChange={set('includeCeiling')}
+          />
+          <p className="mt-1.5 text-xs text-slate-400">
+            Ceiling paint is always flat. Base sq footage defaults to your wall sq footage as a room estimate.
+          </p>
         </div>
 
-        {/* Primer Needed Toggle */}
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-slate-700">Primer Needed?</span>
-          <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm">
-            <button
-              type="button"
-              onClick={() => set('primerNeeded')(false)}
-              className={`flex-1 py-2 font-medium transition-colors ${
-                !inputs.primerNeeded
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              No
-            </button>
-            <button
-              type="button"
-              onClick={() => set('primerNeeded')(true)}
-              className={`flex-1 py-2 font-medium transition-colors ${
-                inputs.primerNeeded
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              Yes
-            </button>
-          </div>
-        </div>
+        {inputs.includeCeiling && (
+          <>
+            {/* Ceiling Texture */}
+            <SelectField
+              label="Ceiling Texture"
+              id="ceilingTexture"
+              value={inputs.ceilingTexture}
+              onChange={set('ceilingTexture')}
+              options={Object.entries(TEXTURE_MULTIPLIERS)}
+            />
+
+            {/* Additional Ceiling Sq Ft */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="addlCeilingSqFt" className="text-sm font-medium text-slate-700">
+                Additional Ceiling Sq Ft
+              </label>
+              <p className="text-xs text-slate-400 -mt-0.5">Vaulted, coffered, or other extra area</p>
+              <input
+                id="addlCeilingSqFt"
+                type="number"
+                min="0"
+                placeholder="0"
+                value={inputs.additionalCeilingSqFt}
+                onChange={(e) => set('additionalCeilingSqFt')(e.target.value)}
+                className={`rounded-lg border px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 ${
+                  err.additionalCeilingSqFt
+                    ? 'border-red-400 focus:border-red-400 focus:ring-red-200'
+                    : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200'
+                }`}
+              />
+              {err.additionalCeilingSqFt && (
+                <p className="text-xs text-red-600">{err.additionalCeilingSqFt}</p>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <button

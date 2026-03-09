@@ -2,35 +2,49 @@ import { useState } from 'react';
 import InputForm from './components/InputForm';
 import ResultsPanel from './components/ResultsPanel';
 import WarningBanner from './components/WarningBanner';
+import { APP_VERSION } from './utils/version';
 import { calculate, getWarnings } from './utils/calculator';
 
 const DEFAULT_INPUTS = {
   squareFootage: '',
   surfaceType: 'drywall-repaint',
   texture: 'smooth',
-  sheen: 'flat',
+  existingSheen: 'flat',
+  paintSheen: 'flat',
   coats: '2',
   isNewSurface: false,
   primerNeeded: false,
   colorChange: 'same',
   overageBuffer: '15',
+  includeCeiling: false,
+  ceilingTexture: 'smooth',
+  additionalCeilingSqFt: '',
 };
 
 export default function App() {
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
   const [result, setResult] = useState(null);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
 
   const warnings = getWarnings(inputs);
 
   function handleCalculate() {
+    const newErrors = {};
     const sqFt = parseFloat(inputs.squareFootage);
     if (!inputs.squareFootage || isNaN(sqFt) || sqFt <= 0) {
-      setError('Please enter a valid square footage greater than 0.');
+      newErrors.squareFootage = 'Please enter a valid square footage greater than 0.';
+    }
+    if (inputs.includeCeiling && inputs.additionalCeilingSqFt !== '') {
+      const addl = parseFloat(inputs.additionalCeilingSqFt);
+      if (isNaN(addl) || addl < 0) {
+        newErrors.additionalCeilingSqFt = 'Additional ceiling sq ft must be 0 or greater.';
+      }
+    }
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) {
       setResult(null);
       return;
     }
-    setError('');
     setResult(calculate(inputs));
     setTimeout(() => {
       document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -40,7 +54,7 @@ export default function App() {
   function handleReset() {
     setInputs(DEFAULT_INPUTS);
     setResult(null);
-    setError('');
+    setErrors({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -56,6 +70,9 @@ export default function App() {
           </div>
           <h1 className="text-3xl font-bold text-slate-900">Paint Calculator</h1>
           <p className="mt-1 text-slate-500">Estimate paint and primer for your next project</p>
+          <span className="mt-2 inline-block rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+            v{APP_VERSION}
+          </span>
         </div>
 
         <div className="flex flex-col gap-5">
@@ -65,7 +82,7 @@ export default function App() {
             inputs={inputs}
             onChange={setInputs}
             onCalculate={handleCalculate}
-            error={error}
+            errors={errors}
           />
 
           {result && (
